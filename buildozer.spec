@@ -17,58 +17,65 @@ source.include_exts = py,png,jpg,kv,atlas
 # (list) Source files to exclude (let empty to not exclude anything)
 source.exclude_exts = spec
 
-# (str) Application versioning (method 1)
+# (str) Application versioning
 version = 1.0
 
-# (list) Application requirements
-requirements = python3,kivy
+# ---------------------------
+# Requirements
+# ---------------------------
+# Gunakan python3 plus versi Kivy yang stabil di p4a.
+# Jika ingin versi Kivy lain, ganti di sini.
+requirements = python3,kivy==2.1.0
 
 # (list) Supported orientations
 orientation = portrait
 
-# (bool) Indicate if the application should be fullscreen or not
+# (bool) fullscreen (0 = windowed, 1 = fullscreen)
 fullscreen = 0
 
 # (list) Permissions
-# PENTING: Jangan aktifkan WRITE_EXTERNAL_STORAGE. 
-# Kita sudah pakai user_data_dir yang legal tanpa izin.
+# PENTING: Jangan aktifkan WRITE_EXTERNAL_STORAGE jika pakai user_data_dir
+# Uncomment jika aplikasi butuh Internet:
 # android.permissions = INTERNET
 
-# (int) Target Android API, should be as high as possible.
+# ---------------------------
+# Android settings
+# ---------------------------
+# Target Android API (set cukup tinggi agar kompatibel)
 android.api = 33
-
-# (int) Minimum API your APK / AAB will support.
+# Minimum API
 android.minapi = 21
-
-# (bool) Use --private data storage (True) or --dir public storage (False)
+# Use private storage (true = lebih aman, tidak perlu permission)
 android.private_storage = True
-
-# (bool) If True, then automatically accept SDK license
+# Auto accept SDK licenses to avoid interactive prompt
 android.accept_sdk_license = True
 
-# (list) The Android archs to build for.
-# PENTING: Ini mencegah crash di HP baru (64-bit)
+# Build archs - tetapkan kedua agar berjalan di perangkat 32 & 64 bit
 android.archs = arm64-v8a, armeabi-v7a
 
-# (bool) enables Android auto backup feature (Android API >=23)
+# Enable Android backup (optional)
 android.allow_backup = True
 
-# (str) The format used to package the app for release mode (aab or apk or aar).
-android.release_artifact = aab
-
-# (str) The format used to package the app for debug mode (apk or aar).
+# Build artifact format
+# Untuk testing/debug lebih gampang pakai apk — ubah ke aab bila mau rilis ke Play Store
+android.release_artifact = apk
 android.debug_artifact = apk
 
 # Python for android (p4a) specific
 p4a.branch = master
 p4a.bootstrap = sdl2
 
-# iOS specific
+# (Optional) Set a specific NDK version if kamu pernah mengalami masalah NDK.
+# Contoh (commented): android.ndk = 23b
+
+# iOS settings (tidak dipakai di Android)
 ios.kivy_ios_dir = ../kivy-ios
 ios.codesign.allowed = false
 
 [buildozer]
-# (int) Log level (0 = error only, 1 = info, 2 = debug (with command output))
+# Log level (0 error only, 1 info, 2 debug)
 log_level = 2
-# (int) Display warning if buildozer is run as root (0 = False, 1 = True)
 warn_on_root = 1
+
+# (Optional) Jika mau output lebih kecil / build caching, ada opsi tambahan,
+# tapi untuk permulaan jangan diubah supaya build lebih prediktabel.
