@@ -1,5 +1,8 @@
+# main.py (REPLACE YOUR OLD main.py WITH THIS)
 import random
 import os
+import sys
+import traceback
 from kivy.app import App
 from kivy.lang import Builder
 from kivy.uix.screenmanager import ScreenManager, Screen
@@ -9,10 +12,10 @@ from kivy.uix.popup import Popup
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.button import Button
-from kivy.animation import Animation
 from kivy.properties import StringProperty, NumericProperty
 from kivy.storage.jsonstore import JsonStore
 
+# Dark background
 Window.clearcolor = (0.1, 0.1, 0.1, 1)
 
 kv_string = '''
@@ -163,23 +166,51 @@ ScreenManager:
             size_hint: 1, 0.45
 '''
 
+# ---------- helper logging ----------
+def write_local_log(msg):
+    """Write a line to app_debug.log in user_data_dir if available."""
+    try:
+        app = App.get_running_app()
+        if app:
+            data_dir = getattr(app, 'user_data_dir', None) or app.user_data_dir
+        else:
+            data_dir = os.path.expanduser('~')
+        if not data_dir:
+            data_dir = os.path.expanduser('~')
+        if not os.path.exists(data_dir):
+            os.makedirs(data_dir, exist_ok=True)
+        log_path = os.path.join(data_dir, 'app_debug.log')
+        with open(log_path, 'a', encoding='utf-8') as f:
+            f.write(msg + '\n')
+    except Exception:
+        # if even logging fails, silently ignore to avoid recursion
+        pass
+
+def log_exception(exc: Exception, where: str = ''):
+    tb = traceback.format_exc()
+    write_local_log(f"EXCEPTION at {where}: {repr(exc)}")
+    write_local_log(tb)
+
+# ---------- Screens ----------
 class GradeScreen(Screen):
     def on_enter(self):
-        app = App.get_running_app()
-        if app.store and app.store.exists('math_data'):
-            try:
+        try:
+            app = App.get_running_app()
+            if getattr(app, 'store', None) and app.store.exists('math_data'):
                 data = app.store.get('math_data')
-                self.ids.btn_resume.disabled = False
-                self.ids.btn_resume.text = f"LANJUT: Kls {data['grade']} - Level {data['level']}"
-            except:
-                self.ids.btn_resume.disabled = True
-        else:
-            self.ids.btn_resume.disabled = True
-
+                btn = self.ids.get('btn_resume', None)
+                if btn:
+                    btn.disabled = False
+                    btn.text = f"LANJUT: Kls {data.get('grade', '?')} - Level {data.get('level', '?')}"
+            else:
+                btn = self.ids.get('btn_resume', None)
+                if btn:
+                    btn.disabled = True
+        except Exception as e:
+            log_exception(e, 'GradeScreen.on_enter')
 
 class MenuScreen(Screen):
     pass
-
 
 class GameScreen(Screen):
     level_text = StringProperty("Level: 1")
@@ -201,145 +232,262 @@ class GameScreen(Screen):
         Clock.schedule_once(self.setup_buttons)
 
     def setup_buttons(self, dt):
-        if 'answer_grid' not in self.ids:
-            Clock.schedule_once(self.setup_buttons, 0.1)
-            return
-
-        grid = self.ids.answer_grid
-        grid.clear_widgets()
-        self.buttons = []
-
-        for _ in range(4):
-            btn = Button(
-                text="",
-                font_size='28sp',
-                background_normal='',
-                background_color=(0.2, 0.6, 1, 1)
-            )
-            btn.bind(on_release=self.check_answer)
-            self.buttons.append(btn)
-            grid.add_widget(btn)
+        try:
+            if 'answer_grid' not in self.ids:
+                Clock.schedule_once(self.setup_buttons, 0.1)
+                return
+            grid = self.ids.answer_grid
+            grid.clear_widgets()
+            self.buttons = []
+            for _ in range(4):
+                btn = Button(text="", font_size='28sp', background_normal='', background_color=(0.2,0.6,1,1))
+                btn.bind(on_release=self.check_answer)
+                self.buttons.append(btn)
+                grid.add_widget(btn)
+        except Exception as e:
+            log_exception(e, 'GameScreen.setup_buttons')
 
     def start_game(self, mode, is_resume=False):
-        self.game_mode = mode
-        if not is_resume:
-            self.level = 1
-            self.total_score = 0
-            self.level_score = 0
-            self.question_num = 1
-        self.next_question()
+        try:
+            self.game_mode = mode
+            if not is_resume:
+                self.level = 1
+                self.total_score = 0
+                self.level_score = 0
+                self.question_num = 1
+            write_local_log(f"start_game mode={mode} is_resume={is_resume}")
+            self.next_question()
+        except Exception as e:
+            log_exception(e, 'GameScreen.start_game')
 
     def next_question(self):
-        if self.timer_event:
-            self.timer_event.cancel()
-
-        self.time_left = 20
-        self.timer_text = str(self.time_left)
-        self.timer_event = Clock.schedule_interval(self.update_timer, 1)
-
-        self.level_text = f"Level: {self.level}"
-        self.score_text = f"Total: {self.total_score}"
-        self.status_text = f"Soal {self.question_num}/10"
-
-        self.generate_question()
+        try:
+            if self.timer_event:
+                try:
+                    self.timer_event.cancel()
+                except Exception:
+                    pass
+            self.time_left = 20
+            self.timer_text = str(self.time_left)
+            self.timer_event = Clock.schedule_interval(self.update_timer, 1)
+            self.level_text = f"Level: {self.level}"
+            self.score_text = f"Total: {self.total_score}"
+            self.status_text = f"Soal {self.question_num}/10"
+            self.generate_question()
+        except Exception as e:
+            log_exception(e, 'GameScreen.next_question')
 
     def generate_question(self):
-        app = App.get_running_app()
-        grade = app.selected_grade
+        try:
+            app = App.get_running_app()
+            grade = getattr(app, 'selected_grade', 3) if app else 3
 
-        num1 = random.randint(1, 20)
-        num2 = random.randint(1, 20)
-        ans = num1 + num2
-        symbol = "+"
+            # generate based on mode (kept simple & safe)
+            if getattr(self, 'game_mode', 'tambah') == 'tambah':
+                num1 = random.randint(1, 50)
+                num2 = random.randint(1, 50)
+                ans = num1 + num2
+                symbol = '+'
+            elif self.game_mode == 'kurang':
+                a = random.randint(1,50)
+                b = random.randint(1,50)
+                num1, num2 = max(a,b), min(a,b)
+                ans = num1 - num2
+                symbol = '-'
+            elif self.game_mode == 'kali':
+                num1 = random.randint(2,12)
+                num2 = random.randint(2,12)
+                ans = num1 * num2
+                symbol = 'x'
+            elif self.game_mode == 'bagi':
+                num2 = random.randint(2,10)
+                quotient = random.randint(2,10)
+                num1 = num2 * quotient
+                ans = quotient
+                symbol = ':'
+            else:
+                num1 = random.randint(1,20)
+                num2 = random.randint(1,20)
+                ans = num1 + num2
+                symbol = '+'
 
-        if self.game_mode == 'kurang':
-            num1, num2 = max(num1, num2), min(num1, num2)
-            ans = num1 - num2
-            symbol = "-"
-        elif self.game_mode == 'kali':
-            ans = num1 * num2
-            symbol = "x"
-        elif self.game_mode == 'bagi':
-            num2 = random.randint(1, 10)
-            ans = random.randint(1, 10)
-            num1 = num2 * ans
-            symbol = ":"
+            self.correct_answer = ans
+            self.question_text = f"{num1} {symbol} {num2} = ?"
 
-        self.correct_answer = ans
-        self.question_text = f"{num1} {symbol} {num2} = ?"
+            answers = [ans]
+            while len(answers) < 4:
+                fake = ans + random.randint(-10, 10)
+                if fake != ans and fake not in answers:
+                    if fake < 0 and grade < 8:
+                        fake = abs(fake)
+                    answers.append(fake)
+            random.shuffle(answers)
 
-        answers = [ans]
-        while len(answers) < 4:
-            fake = ans + random.randint(-10, 10)
-            if fake != ans:
-                answers.append(fake)
-
-        random.shuffle(answers)
-
-        for i, btn in enumerate(self.buttons):
-            btn.text = f"{chr(65+i)}. {answers[i]}"
-            btn.disabled = False
-            btn.background_color = (0.2, 0.6, 1, 1)
+            for i, btn in enumerate(self.buttons):
+                try:
+                    btn.text = f"{chr(65+i)}. {answers[i]}"
+                    btn.disabled = False
+                    btn.background_color = (0.2,0.6,1,1)
+                except Exception:
+                    # if buttons not ready, schedule regenerate
+                    Clock.schedule_once(lambda dt: self.generate_question(), 0.05)
+                    return
+        except Exception as e:
+            log_exception(e, 'GameScreen.generate_question')
 
     def update_timer(self, dt):
-        self.time_left -= 1
-        self.timer_text = str(self.time_left)
-        if self.time_left <= 0:
-            self.check_answer(None, timeout=True)
+        try:
+            self.time_left -= 1
+            self.timer_text = str(self.time_left)
+            if self.time_left <= 0:
+                # call check_answer with timeout
+                self.check_answer(None, timeout=True)
+        except Exception as e:
+            log_exception(e, 'GameScreen.update_timer')
 
     def check_answer(self, instance, timeout=False):
-        if self.timer_event:
-            self.timer_event.cancel()
+        try:
+            if self.timer_event:
+                try:
+                    self.timer_event.cancel()
+                except Exception:
+                    pass
 
-        if instance and not timeout:
-            try:
-                val = int(instance.text.split(". ")[1])
-                if val == self.correct_answer:
-                    self.total_score += 1
-                    instance.background_color = (0, 1, 0, 1)
-                else:
-                    instance.background_color = (1, 0, 0, 1)
-            except:
-                pass
+            correct = False
+            if not timeout and instance is not None:
+                try:
+                    parts = instance.text.split(". ", 1)
+                    if len(parts) >= 2:
+                        val = int(parts[1].strip())
+                        if val == self.correct_answer:
+                            correct = True
+                            self.total_score += 1
+                            self.level_score += 1
+                            instance.background_color = (0,1,0,1)
+                        else:
+                            instance.background_color = (1,0,0,1)
+                except Exception:
+                    # parsing error -> mark red but don't crash
+                    try:
+                        instance.background_color = (1,0,0,1)
+                    except Exception:
+                        pass
 
-        for btn in self.buttons:
-            btn.disabled = True
+            # reveal correct & disable
+            for btn in self.buttons:
+                try:
+                    parts = btn.text.split(". ", 1)
+                    if len(parts) >= 2:
+                        val = int(parts[1].strip())
+                        if val == self.correct_answer and timeout:
+                            btn.background_color = (0,1,0,1)
+                except Exception:
+                    pass
+                try:
+                    btn.disabled = True
+                except Exception:
+                    pass
 
-        Clock.schedule_once(self.next_step, 1)
+            # schedule finish
+            Clock.schedule_once(self.finish_step, 1.0)
+        except Exception as e:
+            log_exception(e, 'GameScreen.check_answer')
 
-    def next_step(self, dt):
-        if self.question_num >= 10:
-            self.manager.current = 'menu'
-        else:
-            self.question_num += 1
-            self.next_question()
+    def finish_step(self, dt):
+        try:
+            if self.question_num >= 10:
+                # save and go to menu safely
+                try:
+                    app = App.get_running_app()
+                    if getattr(app, 'store', None):
+                        try:
+                            app.store.put('math_data', grade=app.selected_grade, level=self.level+1, score=self.total_score, mode=getattr(self, 'game_mode', 'tambah'))
+                        except Exception as e:
+                            log_exception(e, 'saving math_data')
+                except Exception:
+                    pass
+                # for now go back to menu
+                self.manager.current = 'menu'
+            else:
+                self.question_num += 1
+                self.next_question()
+        except Exception as e:
+            log_exception(e, 'GameScreen.finish_step')
 
-
+# ---------- App ----------
 class MathApp(App):
     selected_grade = NumericProperty(3)
     grade_title = StringProperty("Kelas 3 SD")
+    store = None
 
     def build(self):
         try:
             data_dir = self.user_data_dir
-            if not os.path.exists(data_dir):
-                os.makedirs(data_dir)
-            self.store = JsonStore(os.path.join(data_dir, 'math_data.json'))
-        except:
+            write_local_log(f"user_data_dir: {data_dir}")
+            if data_dir and not os.path.exists(data_dir):
+                os.makedirs(data_dir, exist_ok=True)
+            try:
+                self.store = JsonStore(os.path.join(data_dir, 'math_data.json'))
+            except Exception as e:
+                log_exception(e, 'JsonStore.init')
+                self.store = None
+        except Exception as e:
+            log_exception(e, 'MathApp.build (outer)')
             self.store = None
 
         return Builder.load_string(kv_string)
 
     def set_grade(self, grade):
-        self.selected_grade = grade
-        self.grade_title = f"Kelas {grade}"
+        try:
+            self.selected_grade = grade
+            titles = {3: "Kelas 3 SD", 5: "Kelas 5 SD", 8: "Kelas 8 SMP"}
+            self.grade_title = f"Mode: {titles.get(grade, '')}"
+        except Exception as e:
+            log_exception(e, 'MathApp.set_grade')
 
     def load_game(self):
-        if self.store and self.store.exists('math_data'):
-            data = self.store.get('math_data')
-            self.set_grade(data['grade'])
-            self.root.current = 'game'
+        try:
+            if self.store and self.store.exists('math_data'):
+                data = self.store.get('math_data')
+                self.set_grade(data.get('grade', 3))
+                # switch screen safely
+                try:
+                    self.root.current = 'game'
+                    game_screen = self.root.get_screen('game')
+                    game_screen.level = data.get('level', 1)
+                    game_screen.total_score = data.get('score', 0)
+                    game_screen.start_game(data.get('mode', 'tambah'), is_resume=True)
+                except Exception as e:
+                    log_exception(e, 'MathApp.load_game -> screen ops')
+        except Exception as e:
+            log_exception(e, 'MathApp.load_game (outer)')
 
+# ---------- Run with global exception capture ----------
+def run_app():
+    try:
+        MathApp().run()
+    except Exception as e:
+        # Capture any uncaught exception and write full traceback to file
+        tb = traceback.format_exc()
+        try:
+            # try write to user_data_dir if possible
+            app = App.get_running_app()
+            if app:
+                data_dir = getattr(app, 'user_data_dir', None) or app.user_data_dir
+            else:
+                data_dir = os.path.expanduser('~')
+        except Exception:
+            data_dir = os.path.expanduser('~')
+        try:
+            if not os.path.exists(data_dir):
+                os.makedirs(data_dir, exist_ok=True)
+            logf = os.path.join(data_dir, 'app_debug.log')
+            with open(logf, 'a', encoding='utf-8') as f:
+                f.write("UNCAUGHT APP EXCEPTION:\n")
+                f.write(tb + '\n')
+        except Exception:
+            # final fallback: print to stderr
+            sys.stderr.write(tb)
 
 if __name__ == '__main__':
-    MathApp().run()
+    run_app()
