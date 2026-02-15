@@ -1,4 +1,5 @@
 import random
+import os  # Penting untuk path android
 from kivy.app import App
 from kivy.lang import Builder
 from kivy.uix.screenmanager import ScreenManager, Screen
@@ -10,7 +11,7 @@ from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.animation import Animation
 from kivy.properties import StringProperty, NumericProperty
-from kivy.storage.jsonstore import JsonStore # Module untuk Save Data
+from kivy.storage.jsonstore import JsonStore
 
 # Warna Background Gelap
 Window.clearcolor = (0.1, 0.1, 0.1, 1)
@@ -36,14 +37,14 @@ ScreenManager:
             color: 0.2, 0.8, 1, 1
             size_hint: 1, 0.2
 
-        # Tombol Resume (Hanya muncul textnya jika ada save, tapi kita pasang default)
+        # Tombol Resume
         Button:
             id: btn_resume
             text: "LANJUTKAN GAME TERAKHIR"
             font_size: '18sp'
             background_color: 0.5, 0.5, 0.5, 1
             size_hint: 1, 0.15
-            disabled: True # Default mati, nyala jika ada save file
+            disabled: True
             on_release:
                 app.load_game()
 
@@ -214,7 +215,7 @@ class GameScreen(Screen):
         self.time_left = 20
         self.timer_event = None
         self.buttons = []
-        self.current_anim = None # FIX CRASH: Simpan animasi di self
+        self.current_anim = None
         Clock.schedule_once(self.setup_buttons)
 
     def setup_buttons(self, dt):
@@ -234,13 +235,11 @@ class GameScreen(Screen):
     def start_game(self, mode, is_loaded=False):
         self.game_mode = mode
         if not is_loaded:
-            # Jika game baru, reset semuanya
             self.level = 1
             self.question_num = 1
             self.total_score = 0
             self.level_score = 0
         
-        # Mulai soal
         self.next_question()
 
     def next_question(self):
@@ -380,9 +379,9 @@ class GameScreen(Screen):
 
     def finish_step(self, dt):
         if self.question_num >= 10:
-            # Save Progres saat level selesai
+            # Save Progres
             App.get_running_app().save_progress(
-                self.level + 1, # Save untuk level berikutnya
+                self.level + 1,
                 self.total_score,
                 self.game_mode
             )
@@ -404,7 +403,6 @@ class GameScreen(Screen):
         lbl_anim = Label(text=stars, font_size='50sp', size_hint=(1, 0.4))
         content.add_widget(lbl_anim)
         
-        # FIX CRASH: Gunakan self.current_anim agar tidak dibuang memory cleaner
         self.current_anim = Animation(font_size='70sp', duration=0.2) + Animation(font_size='50sp', duration=0.2)
         self.current_anim.repeat = True 
         self.current_anim.start(lbl_anim)
@@ -418,7 +416,7 @@ class GameScreen(Screen):
 
         def next_action(inst):
             if self.current_anim:
-                self.current_anim.cancel(lbl_anim) # Stop animasi dengan aman
+                self.current_anim.cancel(lbl_anim)
             popup.dismiss()
             self.level += 1
             self.question_num = 1
@@ -434,7 +432,6 @@ class GameScreen(Screen):
         
         lbl_trophy = Label(text="🎉 🏆 🎉", font_size='60sp', size_hint=(1, 0.4))
         
-        # FIX CRASH: Gunakan self.current_anim
         self.current_anim = Animation(font_size='80sp', duration=0.4) + Animation(font_size='60sp', duration=0.4)
         self.current_anim.repeat = True
         self.current_anim.start(lbl_trophy)
@@ -447,7 +444,6 @@ class GameScreen(Screen):
             color=(1, 0.84, 0, 1)
         )
         
-        # Animasi warna dipisah (opsional, tapi aman disimpan di variable lokal jika sederhana)
         anim_color = Animation(color=(1, 0, 0, 1), duration=0.5) + Animation(color=(0, 1, 0, 1), duration=0.5) + Animation(color=(0, 0, 1, 1), duration=0.5)
         anim_color.repeat = True
         anim_color.start(lbl_msg)
@@ -472,7 +468,6 @@ class GameScreen(Screen):
                 self.current_anim.cancel(lbl_trophy)
             anim_color.cancel(lbl_msg)
             popup.dismiss()
-            # Reset Data Save setelah tamat
             App.get_running_app().clear_save()
             self.manager.current = 'grade' 
             
@@ -488,12 +483,12 @@ class MathApp(App):
     selected_grade = NumericProperty(3)
     grade_title = StringProperty("Kelas 3 SD")
     
-    # Inisialisasi Penyimpanan Data
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.store = JsonStore('math_game_data.json')
-
     def build(self):
+        # --- PERBAIKAN PENTING UNTUK ANDROID ---
+        # Kita gunakan user_data_dir agar aplikasi punya izin tulis file
+        data_dir = self.user_data_dir
+        self.store = JsonStore(os.path.join(data_dir, 'math_game_data.json'))
+        
         return Builder.load_string(kv_string)
 
     def set_grade(self, grade):
@@ -501,8 +496,8 @@ class MathApp(App):
         titles = {3: "Kelas 3 SD", 5: "Kelas 5 SD", 8: "Kelas 8 SMP"}
         self.grade_title = f"Mode: {titles.get(grade, '')}"
     
-    # Fungsi Save
     def save_progress(self, level, score, mode):
+        # Simpan progress
         self.store.put('math_game_data', 
             grade=self.selected_grade,
             level=level,
@@ -510,23 +505,19 @@ class MathApp(App):
             mode=mode
         )
 
-    # Fungsi Load
     def load_game(self):
         if self.store.exists('math_game_data'):
             data = self.store.get('math_game_data')
             self.set_grade(data['grade'])
             
-            # Pindah ke layar game
             screen_manager = self.root
             screen_manager.current = 'game'
             game_screen = screen_manager.get_screen('game')
             
-            # Set data ke game screen
             game_screen.level = data['level']
             game_screen.total_score = data['score']
             game_screen.start_game(data['mode'], is_loaded=True)
 
-    # Hapus Save (Jika Tamat)
     def clear_save(self):
         if self.store.exists('math_game_data'):
             self.store.delete('math_game_data')
