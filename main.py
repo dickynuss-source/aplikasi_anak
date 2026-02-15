@@ -184,16 +184,20 @@ ScreenManager:
 
 class GradeScreen(Screen):
     def on_enter(self):
-        # Cek apakah store berhasil di-load
+        # FIX CRASH: Cek dulu apakah store ada isinya (tidak None)
         app = App.get_running_app()
-        if app.store and app.store.exists('math_game_data'):
+        
+        # Logika Pengaman: Cek store dulu, baru cek exists
+        if app.store is not None and app.store.exists('math_game_data'):
             self.ids.btn_resume.disabled = False
             self.ids.btn_resume.background_color = (0.2, 0.6, 1, 1)
             try:
                 data = app.store.get('math_game_data')
                 self.ids.btn_resume.text = f"LANJUT: Kls {data['grade']} - Lvl {data['level']}"
             except:
-                self.ids.btn_resume.text = "Data Corrupt"
+                # Jika data corrupt, reset tombol
+                self.ids.btn_resume.disabled = True
+                self.ids.btn_resume.text = "Data Rusak"
         else:
             self.ids.btn_resume.disabled = True
             self.ids.btn_resume.text = "Tidak Ada Data Simpanan"
@@ -485,17 +489,18 @@ class GameScreen(Screen):
 class MathApp(App):
     selected_grade = NumericProperty(3)
     grade_title = StringProperty("Kelas 3 SD")
-    store = None # Inisialisasi awal None
+    store = None # Default None agar aman
     
     def build(self):
         # --- PERBAIKAN FATAL: SAFE STORAGE ---
-        # Kita bungkus dalam Try-Except agar APK tidak crash kalau gagal load file
         try:
+            # Gunakan user_data_dir agar legal di Android
             data_dir = self.user_data_dir
             self.store = JsonStore(os.path.join(data_dir, 'math_game_data.json'))
         except Exception as e:
+            # Jika gagal (misal permission ditolak), print error tapi JANGAN CRASH
             print(f"Gagal memuat penyimpanan: {e}")
-            self.store = None # Jika gagal, fitur save mati tapi game tetap jalan
+            self.store = None # Set None, game akan jalan tanpa fitur save
         
         return Builder.load_string(kv_string)
 
@@ -505,8 +510,8 @@ class MathApp(App):
         self.grade_title = f"Mode: {titles.get(grade, '')}"
     
     def save_progress(self, level, score, mode):
-        # Hanya simpan jika store berhasil dimuat
-        if self.store:
+        # FIX CRASH: Cek apakah store ada sebelum menyimpan
+        if self.store is not None:
             try:
                 self.store.put('math_game_data', 
                     grade=self.selected_grade,
@@ -518,7 +523,8 @@ class MathApp(App):
                 pass # Abaikan error save agar tidak ganggu permainan
 
     def load_game(self):
-        if self.store and self.store.exists('math_game_data'):
+        # FIX CRASH: Cek apakah store ada sebelum meload
+        if self.store is not None and self.store.exists('math_game_data'):
             data = self.store.get('math_game_data')
             self.set_grade(data['grade'])
             
@@ -531,7 +537,7 @@ class MathApp(App):
             game_screen.start_game(data['mode'], is_loaded=True)
 
     def clear_save(self):
-        if self.store and self.store.exists('math_game_data'):
+        if self.store is not None and self.store.exists('math_game_data'):
             self.store.delete('math_game_data')
 
 if __name__ == '__main__':
