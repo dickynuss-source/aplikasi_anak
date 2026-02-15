@@ -1,10 +1,10 @@
 [app]
 
 # (str) Title of your application
-title = TestApp
+title = MathApp
 
 # (str) Package name
-package.name = testapp-v1
+package.name = mathapp-v1
 
 # (str) Package domain (needed for android/ios packaging)
 package.domain = phy.dhiman.testapp
