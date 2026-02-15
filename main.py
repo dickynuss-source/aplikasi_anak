@@ -8,6 +8,7 @@ from kivy.uix.popup import Popup
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.button import Button
+from kivy.properties import StringProperty
 
 # Warna Background Gelap (Agar mata nyaman)
 Window.clearcolor = (0.1, 0.1, 0.1, 1)
@@ -119,7 +120,6 @@ class MenuScreen(Screen):
     pass
 
 class GameScreen(Screen):
-    from kivy.properties import StringProperty
     level_text = StringProperty("Level: 1")
     timer_text = StringProperty("20")
     score_text = StringProperty("Total: 0")
@@ -132,7 +132,7 @@ class GameScreen(Screen):
         self.level = 1
         self.question_num = 1
         self.total_score = 0
-        self.level_score = 0  # Skor khusus per level untuk hitung bintang
+        self.level_score = 0
         self.time_left = 20
         self.timer_event = None
         self.buttons = []
@@ -250,12 +250,11 @@ class GameScreen(Screen):
             if val == self.correct_answer:
                 correct = True
                 self.total_score += 1
-                self.level_score += 1 # Tambah poin level
+                self.level_score += 1
                 instance.background_color = (0, 1, 0, 1)
             else:
                 instance.background_color = (1, 0, 0, 1)
         
-        # Highlight jawaban benar
         for btn in self.buttons:
             val = int(btn.text.split('. ')[1])
             if val == self.correct_answer:
@@ -266,15 +265,12 @@ class GameScreen(Screen):
 
     def finish_step(self, dt):
         if self.question_num >= 10:
-            # Level Selesai -> Tampilkan Popup Penghargaan
             self.show_level_complete()
         else:
-            # Lanjut soal berikutnya dalam level yang sama
             self.question_num += 1
             self.next_question()
 
     def show_level_complete(self):
-        # Tentukan Bintang dan Pesan
         stars = ""
         msg = ""
         color = (1, 1, 1, 1)
@@ -282,17 +278,16 @@ class GameScreen(Screen):
         if self.level_score == 10:
             stars = "⭐⭐⭐"
             msg = "SEMPURNA!\nKamu Luar Biasa!"
-            color = (0, 1, 0, 1) # Hijau
+            color = (0, 1, 0, 1)
         elif self.level_score >= 7:
             stars = "⭐⭐"
             msg = "HEBAT!\nTerus Pertahankan!"
-            color = (1, 1, 0, 1) # Kuning
+            color = (1, 1, 0, 1)
         else:
             stars = "⭐"
             msg = "BAGUS!\nAyo Belajar Lagi!"
-            color = (1, 0.5, 0, 1) # Oranye
+            color = (1, 0.5, 0, 1)
 
-        # Isi Popup
         content = BoxLayout(orientation='vertical', padding=10, spacing=10)
         
         lbl_stars = Label(text=stars, font_size='40sp', size_hint=(1, 0.3))
@@ -317,7 +312,7 @@ class GameScreen(Screen):
             popup.dismiss()
             self.level += 1
             self.question_num = 1
-            self.level_score = 0 # Reset skor level
+            self.level_score = 0
             
             if self.level > 10:
                 self.game_over()
