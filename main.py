@@ -8,63 +8,115 @@ from kivy.uix.popup import Popup
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.button import Button
-from kivy.properties import StringProperty
+from kivy.animation import Animation
+from kivy.properties import StringProperty, NumericProperty
 
-# Warna Background Gelap (Agar mata nyaman)
+# Warna Background Gelap
 Window.clearcolor = (0.1, 0.1, 0.1, 1)
 
 # --- Desain UI (KV Language) ---
 kv_string = '''
 ScreenManager:
+    GradeScreen:
     MenuScreen:
     GameScreen:
 
-<MenuScreen>:
-    name: 'menu'
+<GradeScreen>:
+    name: 'grade'
     BoxLayout:
         orientation: 'vertical'
         padding: 30
         spacing: 20
         
         Label:
-            text: "JAGO MATEMATIKA"
-            font_size: '32sp'
+            text: "PILIH KELAS"
+            font_size: '30sp'
             bold: True
-            color: 1, 0.8, 0, 1  # Warna Emas
-            size_hint: 1, 0.3
+            color: 0.2, 0.8, 1, 1
+            size_hint: 1, 0.2
+
+        Button:
+            text: "KELAS 3 SD"
+            font_size: '20sp'
+            background_color: 0.2, 0.8, 0.2, 1
+            on_release: 
+                app.set_grade(3)
+                root.manager.current = 'menu'
+        
+        Button:
+            text: "KELAS 5 SD"
+            font_size: '20sp'
+            background_color: 1, 0.8, 0, 1
+            on_release: 
+                app.set_grade(5)
+                root.manager.current = 'menu'
+
+        Button:
+            text: "KELAS 8 SMP"
+            font_size: '20sp'
+            background_color: 0.8, 0.2, 0.2, 1
+            on_release: 
+                app.set_grade(8)
+                root.manager.current = 'menu'
+
+<MenuScreen>:
+    name: 'menu'
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 30
+        spacing: 15
+        
+        Label:
+            text: app.grade_title
+            font_size: '20sp'
+            color: 0.6, 0.6, 0.6, 1
+            size_hint: 1, 0.1
+
+        Label:
+            text: "MATH MASTER"
+            font_size: '35sp'
+            bold: True
+            color: 1, 0.84, 0, 1
+            size_hint: 1, 0.2
 
         GridLayout:
             cols: 2
             spacing: 20
-            size_hint: 1, 0.7
+            size_hint: 1, 0.6
             
             MenuButton:
-                text: "Penjumlahan (+)"
+                text: "Tambah (+)"
                 background_color: 0.2, 0.8, 0.2, 1
                 on_release: 
                     root.manager.current = 'game'
                     root.manager.get_screen('game').start_game('tambah')
             
             MenuButton:
-                text: "Pengurangan (-)"
+                text: "Kurang (-)"
                 background_color: 0.8, 0.2, 0.2, 1
                 on_release: 
                     root.manager.current = 'game'
                     root.manager.get_screen('game').start_game('kurang')
 
             MenuButton:
-                text: "Perkalian (x)"
+                text: "Kali (x)"
                 background_color: 0.2, 0.2, 0.8, 1
                 on_release: 
                     root.manager.current = 'game'
                     root.manager.get_screen('game').start_game('kali')
 
             MenuButton:
-                text: "Pembagian (:)"
+                text: "Bagi (:)"
                 background_color: 0.8, 0.8, 0.2, 1
                 on_release: 
                     root.manager.current = 'game'
                     root.manager.get_screen('game').start_game('bagi')
+        
+        Button:
+            text: "<< Ganti Kelas"
+            size_hint: 1, 0.1
+            background_color: 0.3, 0.3, 0.3, 1
+            on_release: root.manager.current = 'grade'
 
 <MenuButton@Button>:
     font_size: '18sp'
@@ -78,7 +130,7 @@ ScreenManager:
         padding: 20
         spacing: 10
 
-        # Info Bar (Level, Timer, Skor Total)
+        # Info Bar
         GridLayout:
             cols: 3
             size_hint: 1, 0.1
@@ -101,20 +153,21 @@ ScreenManager:
             size_hint: 1, 0.1
             color: 0.7, 0.7, 0.7, 1
 
-        # Area Soal
         Label:
             text: root.question_text
             font_size: '45sp'
             bold: True
             size_hint: 1, 0.35
 
-        # Grid Tombol Jawaban
         GridLayout:
             id: answer_grid
             cols: 2
             spacing: 15
             size_hint: 1, 0.45
 '''
+
+class GradeScreen(Screen):
+    pass
 
 class MenuScreen(Screen):
     pass
@@ -136,7 +189,6 @@ class GameScreen(Screen):
         self.time_left = 20
         self.timer_event = None
         self.buttons = []
-        
         Clock.schedule_once(self.setup_buttons)
 
     def setup_buttons(self, dt):
@@ -162,55 +214,88 @@ class GameScreen(Screen):
         self.next_question()
 
     def next_question(self):
-        # Reset Timer
         if self.timer_event: self.timer_event.cancel()
         self.time_left = 20
         self.timer_text = str(self.time_left)
         self.timer_event = Clock.schedule_interval(self.update_timer, 1)
         
-        # Update Info UI
         self.level_text = f"Level: {self.level}"
         self.score_text = f"Total: {self.total_score}"
         self.status_text = f"Soal {self.question_num}/10"
-
-        # Generate Logic
         self.generate_logic()
 
     def generate_logic(self):
+        app = App.get_running_app()
+        grade = app.selected_grade 
+        
         num1, num2 = 0, 0
         ans = 0
         op_symbol = ""
 
-        # Logika Tingkat Kesulitan
+        # --- LOGIKA SOAL ---
         if self.game_mode == 'tambah':
-            limit = 10 + (self.level * 9)
-            num1 = random.randint(1, limit)
-            num2 = random.randint(1, limit)
+            multiplier = 10 if grade == 3 else (50 if grade == 5 else 100)
+            base = 20 if grade == 3 else (50 if grade == 5 else 100)
+            limit = base + (self.level * multiplier)
+            
+            num1 = random.randint(10, limit)
+            num2 = random.randint(5, limit)
             ans = num1 + num2
             op_symbol = "+"
-            
+
         elif self.game_mode == 'kurang':
-            limit = 15 + (self.level * 8)
-            a = random.randint(5, limit)
-            b = random.randint(1, a)
-            num1, num2 = a, b
+            multiplier = 10 if grade == 3 else (50 if grade == 5 else 100)
+            limit = (self.level * multiplier) + 20
+            a = random.randint(10, limit)
+            b = random.randint(5, limit)
+            
+            if grade == 8:
+                num1, num2 = a, b 
+            else:
+                num1 = max(a, b)
+                num2 = min(a, b)
+                if num1 == num2: num1 += random.randint(1, 5)
+
             ans = num1 - num2
             op_symbol = "-"
-            
+
         elif self.game_mode == 'kali':
-            min_n = 1
-            max_n = min(9, 2 + self.level)
-            num1 = random.randint(min_n, max_n)
-            num2 = random.randint(min_n, max_n)
+            if grade == 3: limit = 10
+            elif grade == 5: limit = 12 
+            else: limit = 20
+
+            num1 = random.randint(2, limit)
+            
+            if grade == 5:
+                # Pastikan hasil <= 100
+                max_num2 = int(100 / num1)
+                if max_num2 < 2: max_num2 = 2
+                num2 = random.randint(2, max_num2)
+            else:
+                num2 = random.randint(2, limit)
+
             ans = num1 * num2
             op_symbol = "x"
-            
+
         elif self.game_mode == 'bagi':
-            divisor = random.randint(2, 9)
-            max_quotient = 10 + self.level
-            quotient = random.randint(1, max_quotient)
-            while (divisor * quotient) > 99:
-                quotient = random.randint(1, max_quotient)
+            if grade == 3:
+                max_res = 10
+                max_div = 10
+            elif grade == 5:
+                max_res = 10
+                max_div = 10
+            else:
+                max_res = 25
+                max_div = 20
+
+            quotient = random.randint(2, max_res)
+            divisor = random.randint(2, max_div)
+            
+            if grade == 5:
+                while (divisor * quotient) > 100:
+                    quotient = random.randint(2, 10)
+                    divisor = random.randint(2, 10)
+
             num1 = divisor * quotient
             num2 = divisor
             ans = quotient
@@ -219,16 +304,17 @@ class GameScreen(Screen):
         self.correct_answer = ans
         self.question_text = f"{num1} {op_symbol} {num2} = ?"
 
-        # Pilihan Jawaban
+        # Generate Jawaban
         answers = [ans]
         while len(answers) < 4:
             offset = random.randint(-5, 5)
+            if grade >= 5: offset = random.randint(-10, 10)
             fake = ans + offset
-            if fake >= 0 and fake not in answers:
+            if grade < 8 and fake < 0: fake = abs(fake)
+            if fake != ans and fake not in answers:
                 answers.append(fake)
         
         random.shuffle(answers)
-        
         opts = ['A', 'B', 'C', 'D']
         for i, btn in enumerate(self.buttons):
             btn.text = f"{opts[i]}. {answers[i]}"
@@ -265,94 +351,111 @@ class GameScreen(Screen):
 
     def finish_step(self, dt):
         if self.question_num >= 10:
-            self.show_level_complete()
+            if self.level >= 10:
+                self.show_final_celebration()
+            else:
+                self.show_level_complete()
         else:
             self.question_num += 1
             self.next_question()
 
     def show_level_complete(self):
-        stars = ""
-        msg = ""
-        color = (1, 1, 1, 1)
+        # --- ANIMASI PER LEVEL ---
+        stars = "⭐" * (1 if self.level_score < 7 else (2 if self.level_score < 10 else 3))
+        msg = "Hebat!" if self.level_score >= 7 else "Ayo Lanjut!"
         
-        if self.level_score == 10:
-            stars = "⭐⭐⭐"
-            msg = "SEMPURNA!\nKamu Luar Biasa!"
-            color = (0, 1, 0, 1)
-        elif self.level_score >= 7:
-            stars = "⭐⭐"
-            msg = "HEBAT!\nTerus Pertahankan!"
-            color = (1, 1, 0, 1)
-        else:
-            stars = "⭐"
-            msg = "BAGUS!\nAyo Belajar Lagi!"
-            color = (1, 0.5, 0, 1)
-
         content = BoxLayout(orientation='vertical', padding=10, spacing=10)
         
-        lbl_stars = Label(text=stars, font_size='40sp', size_hint=(1, 0.3))
-        lbl_msg = Label(text=msg, font_size='20sp', halign='center', color=color)
-        lbl_score = Label(text=f"Benar: {self.level_score}/10", font_size='18sp', color=(0.8, 0.8, 0.8, 1))
+        # Label Animasi
+        lbl_anim = Label(text=stars, font_size='50sp', size_hint=(1, 0.4))
+        content.add_widget(lbl_anim)
         
-        btn_next = Button(
-            text="Level Berikutnya >>", 
-            size_hint=(1, 0.3),
+        # Animasi Bounce
+        anim = Animation(font_size='70sp', duration=0.2) + Animation(font_size='50sp', duration=0.2)
+        anim.repeat = True 
+        anim.start(lbl_anim)
+
+        content.add_widget(Label(text=msg, font_size='24sp', color=(1,1,0,1)))
+        content.add_widget(Label(text=f"Skor Level: {self.level_score}/10", font_size='18sp'))
+        
+        btn_next = Button(text="LANJUT >>", size_hint=(1, 0.3), background_color=(0.2, 0.8, 0.2, 1))
+        
+        popup = Popup(title=f'Level {self.level} Selesai!', content=content, size_hint=(0.7, 0.5), auto_dismiss=False)
+
+        def next_action(inst):
+            anim.cancel(lbl_anim)
+            popup.dismiss()
+            self.level += 1
+            self.question_num = 1
+            self.level_score = 0
+            self.next_question()
+
+        btn_next.bind(on_release=next_action)
+        content.add_widget(btn_next)
+        popup.open()
+
+    def show_final_celebration(self):
+        # --- ANIMASI FINAL LEVEL ---
+        content = BoxLayout(orientation='vertical', padding=20, spacing=10)
+        
+        lbl_trophy = Label(text="🎉 🏆 🎉", font_size='60sp', size_hint=(1, 0.4))
+        
+        anim_pulse = Animation(font_size='80sp', duration=0.4) + Animation(font_size='60sp', duration=0.4)
+        anim_pulse.repeat = True
+        anim_pulse.start(lbl_trophy)
+        
+        lbl_msg = Label(
+            text=f"LUAR BIASA!\nKAMU MENYELESAIKAN\nSEMUA LEVEL!", 
+            font_size='22sp', 
+            halign='center',
+            bold=True,
+            color=(1, 0.84, 0, 1)
+        )
+        
+        anim_color = Animation(color=(1, 0, 0, 1), duration=0.5) + Animation(color=(0, 1, 0, 1), duration=0.5) + Animation(color=(0, 0, 1, 1), duration=0.5)
+        anim_color.repeat = True
+        anim_color.start(lbl_msg)
+
+        btn_menu = Button(
+            text="KEMBALI KE MENU", 
+            size_hint=(1, 0.2), 
             background_color=(0.2, 0.6, 1, 1),
             bold=True
         )
         
         popup = Popup(
-            title=f'Level {self.level} Selesai', 
+            title='🎉 CHAMPION! 🎉', 
             content=content, 
-            size_hint=(0.8, 0.5), 
-            auto_dismiss=False
+            size_hint=(0.9, 0.6), 
+            auto_dismiss=False,
+            separator_color=(1, 1, 0, 1)
         )
-
-        def next_action(inst):
-            popup.dismiss()
-            self.level += 1
-            self.question_num = 1
-            self.level_score = 0
-            
-            if self.level > 10:
-                self.game_over()
-            else:
-                self.next_question()
-
-        btn_next.bind(on_release=next_action)
-        
-        content.add_widget(lbl_stars)
-        content.add_widget(lbl_msg)
-        content.add_widget(lbl_score)
-        content.add_widget(btn_next)
-        popup.open()
-
-    def game_over(self):
-        content = BoxLayout(orientation='vertical', padding=10)
-        content.add_widget(Label(
-            text=f"TAMAT!\nTotal Skor Akhir: {self.total_score}", 
-            font_size='20sp',
-            halign='center'
-        ))
-        btn = Button(
-            text="Ke Menu Utama", 
-            size_hint=(1, 0.4),
-            background_color=(0.8, 0.2, 0.2, 1)
-        )
-        
-        popup = Popup(title='Permainan Selesai', content=content, size_hint=(0.8, 0.4), auto_dismiss=False)
         
         def to_menu(inst):
+            anim_pulse.cancel(lbl_trophy)
+            anim_color.cancel(lbl_msg)
             popup.dismiss()
-            self.manager.current = 'menu'
+            self.manager.current = 'grade' 
             
-        btn.bind(on_release=to_menu)
-        content.add_widget(btn)
+        btn_menu.bind(on_release=to_menu)
+        
+        content.add_widget(lbl_trophy)
+        content.add_widget(lbl_msg)
+        content.add_widget(Label(text=f"Total Skor: {self.total_score}", font_size='18sp'))
+        content.add_widget(btn_menu)
         popup.open()
 
 class MathApp(App):
+    selected_grade = NumericProperty(3)
+    grade_title = StringProperty("Kelas 3 SD")
+
     def build(self):
         return Builder.load_string(kv_string)
+
+    def set_grade(self, grade):
+        self.selected_grade = grade
+        titles = {3: "Kelas 3 SD", 5: "Kelas 5 SD", 8: "Kelas 8 SMP"}
+        self.grade_title = f"Mode: {titles.get(grade, '')}"
 
 if __name__ == '__main__':
     MathApp().run()
