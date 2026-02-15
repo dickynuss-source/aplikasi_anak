@@ -202,11 +202,14 @@ class GradeScreen(Screen):
     def on_enter(self):
         # Update tombol resume setiap masuk layar ini
         app = App.get_running_app()
-        if app.store.exists('math_data'):
-            data = app.store.get('math_data')
-            self.ids.btn_resume.disabled = False
-            self.ids.btn_resume.background_color = (0.2, 0.6, 1, 1) # Biru
-            self.ids.btn_resume.text = f"LANJUT: Kls {data['grade']} - Level {data['level']}"
+        if app.store and app.store.exists('math_data'):
+            try:
+                data = app.store.get('math_data')
+                self.ids.btn_resume.disabled = False
+                self.ids.btn_resume.background_color = (0.2, 0.6, 1, 1) # Biru
+                self.ids.btn_resume.text = f"LANJUT: Kls {data['grade']} - Level {data['level']}"
+            except:
+                self.ids.btn_resume.text = "Data Rusak"
         else:
             self.ids.btn_resume.disabled = True
             self.ids.btn_resume.background_color = (0.5, 0.5, 0.5, 1)
@@ -460,9 +463,14 @@ class MathApp(App):
     store = None
 
     def build(self):
-        # Inisialisasi Storage di Folder AMAN (User Data Dir)
-        data_dir = self.user_data_dir
-        self.store = JsonStore(os.path.join(data_dir, 'math_data.json'))
+        try:
+            # Inisialisasi Storage di Folder AMAN (User Data Dir)
+            # Ini tidak butuh izin Storage di Android Manifest
+            data_dir = self.user_data_dir
+            self.store = JsonStore(os.path.join(data_dir, 'math_data.json'))
+        except:
+            self.store = None # Fallback jika gagal
+
         return Builder.load_string(kv_string)
 
     def set_grade(self, grade):
@@ -471,12 +479,14 @@ class MathApp(App):
         self.grade_title = f"Mode: {titles.get(grade, '')}"
     
     def save_game(self, level, score, mode):
-        # Simpan progress ke internal storage
-        self.store.put('math_data', grade=self.selected_grade, level=level, score=score, mode=mode)
+        if self.store:
+            try:
+                self.store.put('math_data', grade=self.selected_grade, level=level, score=score, mode=mode)
+            except:
+                pass
 
     def load_game(self):
-        # Load progress
-        if self.store.exists('math_data'):
+        if self.store and self.store.exists('math_data'):
             data = self.store.get('math_data')
             self.set_grade(data['grade'])
             
@@ -487,7 +497,7 @@ class MathApp(App):
             game_screen.start_game(data['mode'], is_resume=True)
             
     def clear_game(self):
-        if self.store.exists('math_data'):
+        if self.store and self.store.exists('math_data'):
             self.store.delete('math_data')
 
 if __name__ == '__main__':
