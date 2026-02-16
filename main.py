@@ -1,4 +1,4 @@
-# main.py (FINAL: ANIMATED COVER + ASSETS FOLDER SUPPORT)
+# main.py (FINAL: SAVE & LOAD SYSTEM FIXED)
 import random
 import os
 import sys
@@ -10,7 +10,6 @@ from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.uix.popup import Popup
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.properties import StringProperty, NumericProperty, ListProperty
@@ -18,8 +17,6 @@ from kivy.storage.jsonstore import JsonStore
 from kivy.animation import Animation
 from kivy.graphics import Color, RoundedRectangle
 from kivy.core.audio import SoundLoader
-from kivy.resources import resource_find
-from kivy.metrics import dp
 
 # Warna Background (Biru Gelap Modern)
 Window.clearcolor = (0.1, 0.15, 0.22, 1)
@@ -50,20 +47,12 @@ ScreenManager:
 
 <GradeScreen>:
     name: 'grade'
-    
-    # Layer 1: Background Animasi (Floating Math Symbols)
-    FloatLayout:
-        id: bg_anim_layer
-
-    # Layer 2: Konten Utama
     BoxLayout:
         orientation: 'vertical'
         padding: 40
         spacing: 20
 
-        # Label Judul dengan ID agar bisa dianimasi
         Label:
-            id: title_lbl
             text: "MATH MASTER"
             font_size: '42sp'
             bold: True
@@ -82,7 +71,7 @@ ScreenManager:
                 app.load_last_game()
 
         Label:
-            text: "PILIH KELAS BARU:"
+            text: "ATAU PILIH KELAS BARU:"
             font_size: '16sp'
             color: 0.7, 0.7, 0.7, 1
             size_hint: 1, 0.1
@@ -282,90 +271,30 @@ class RoundedButton(Button):
 # ---------- Screens ----------
 class GradeScreen(Screen):
     def on_enter(self):
-        # 1. Cek Save Data
+        # Setiap masuk layar ini, cek apakah ada Save Data
         self.check_save_data()
-        
-        # 2. Mulai Animasi Judul
-        self.animate_title()
-        
-        # 3. Mulai Animasi Background (Simbol Matematika Terbang)
-        self.start_floating_symbols()
-
-    def on_leave(self):
-        # Hentikan animasi saat pindah layar agar hemat resource
-        Animation.cancel_all(self.ids.title_lbl)
-        self.ids.bg_anim_layer.clear_widgets()
 
     def check_save_data(self):
         try:
             app = App.get_running_app()
             btn = self.ids.btn_resume
+            
             if getattr(app, 'store', None) and app.store.exists('math_save'):
                 data = app.store.get('math_save')
+                # Tampilkan info save di tombol
                 lvl = data.get('level', 1)
                 scr = data.get('score', 0)
                 mode = data.get('mode', 'tambah').upper()
+                
                 btn.text = f"LANJUT: {mode} (Level {lvl}) - Skor {scr}"
                 btn.disabled = False
-                btn.bg_color = (0.2, 0.7, 0.2, 1) 
+                btn.bg_color = (0.2, 0.7, 0.2, 1) # Hijau
             else:
                 btn.text = "TIDAK ADA SAVE DATA"
                 btn.disabled = True
-                btn.bg_color = (0.3, 0.3, 0.3, 1)
+                btn.bg_color = (0.3, 0.3, 0.3, 1) # Abu-abu
         except Exception as e:
             write_local_log(f"Error checking save: {e}")
-
-    def animate_title(self):
-        # Animasi Denyut (Pulse)
-        lbl = self.ids.title_lbl
-        # Reset ukuran dulu
-        lbl.font_size = '42sp'
-        
-        # Animasi: Besar -> Kecil -> Ulangi
-        anim = Animation(font_size='50sp', duration=1.0, t='in_out_quad') + \
-               Animation(font_size='42sp', duration=1.0, t='in_out_quad')
-        anim.repeat = True
-        anim.start(lbl)
-
-    def start_floating_symbols(self):
-        # Buat simbol matematika melayang secara acak
-        # Tambahkan simbol baru setiap 0.5 detik
-        Clock.schedule_interval(self.spawn_symbol, 0.8)
-
-    def spawn_symbol(self, dt):
-        # Jika sudah pindah layar, hentikan spawn
-        if self.manager.current != 'grade':
-            return False
-
-        bg = self.ids.bg_anim_layer
-        
-        # Batasi jumlah simbol agar tidak lag (max 15)
-        if len(bg.children) > 15:
-            return
-
-        symbols = ['+', '-', 'x', ':', '?', '%', '=']
-        txt = random.choice(symbols)
-        
-        # Posisi X acak, Y mulai dari bawah layar
-        pos_x = random.random() # 0.0 - 1.0 (relative)
-        
-        lbl = Label(
-            text=txt,
-            font_size=f'{random.randint(20, 60)}sp',
-            color=(1, 1, 1, 0.1), # Transparan (putih pudar)
-            pos_hint={'x': pos_x, 'y': -0.1},
-            size_hint=(None, None)
-        )
-        
-        bg.add_widget(lbl)
-        
-        # Animasi: Gerak ke atas sambil memudar/hilang
-        duration = random.uniform(3, 6)
-        anim = Animation(pos_hint={'x': pos_x, 'y': 1.1}, duration=duration) # Terbang ke atas layar
-        
-        # Hapus widget setelah animasi selesai
-        anim.bind(on_complete=lambda *args: bg.remove_widget(lbl))
-        anim.start(lbl)
 
 class MenuScreen(Screen):
     pass
@@ -381,11 +310,14 @@ class GameScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.buttons = []
+        
+        # State Variables
         self.level = 1
         self.total_score = 0
         self.question_num = 1
         self.lives = 3
         self.game_mode = 'tambah'
+        
         self.time_left = 20
         self.correct_answer = 0
         self.timer_event = None
@@ -405,7 +337,10 @@ class GameScreen(Screen):
             self.buttons.append(btn)
             grid.add_widget(btn)
 
+    # --- GAMEPLAY LOGIC ---
+
     def start_new_game(self, mode):
+        """Memulai game baru dari awal"""
         self.game_mode = mode
         self.level = 1
         self.total_score = 0
@@ -414,6 +349,7 @@ class GameScreen(Screen):
         self.start_round()
 
     def resume_game(self, data):
+        """Melanjutkan game dari data save"""
         self.game_mode = data.get('mode', 'tambah')
         self.level = data.get('level', 1)
         self.total_score = data.get('score', 0)
@@ -422,6 +358,7 @@ class GameScreen(Screen):
         self.start_round()
 
     def start_round(self):
+        # Update UI Awal
         self.update_ui_labels()
         self.next_question()
 
@@ -429,12 +366,14 @@ class GameScreen(Screen):
         self.game_active = True
         if self.timer_event: self.timer_event.cancel()
         
+        # Kesulitan Waktu
         base = 20
         reduction = min(12, (self.level - 1))
         self.time_left = base - reduction
         
         self.timer_text = str(self.time_left)
         self.timer_event = Clock.schedule_interval(self.update_timer, 1)
+        
         self.update_ui_labels()
         self.generate_question()
 
@@ -449,6 +388,7 @@ class GameScreen(Screen):
         grade = getattr(app, 'selected_grade', 3)
         diff = self.level
         
+        # Logic Soal
         if self.game_mode == 'tambah':
             max_v = 15 + (10 * diff) + (grade*2)
             n1, n2 = random.randint(1, max_v), random.randint(1, max_v)
@@ -473,6 +413,7 @@ class GameScreen(Screen):
         self.correct_answer = ans
         self.question_text = f"{n1} {sym} {n2} = ?"
 
+        # Jawaban Pengecoh
         answers = [ans]
         while len(answers) < 4:
             fake = ans + random.randint(-5, 5)
@@ -484,7 +425,8 @@ class GameScreen(Screen):
         for i, btn in enumerate(self.buttons):
             btn.text = str(answers[i])
             btn.disabled = False
-            btn.bg_color = (0.2, 0.6, 1, 1)
+            btn.bg_color = (0.2, 0.6, 1, 1) # Reset Biru
+            # Animasi Fade In
             anim = Animation(opacity=0, duration=0) + Animation(opacity=1, duration=0.3)
             anim.start(btn)
 
@@ -500,6 +442,7 @@ class GameScreen(Screen):
         self.game_active = False 
         if self.timer_event: self.timer_event.cancel()
 
+        # Animasi Pencet
         if instance:
             anim = Animation(size_hint=(0.45, 0.9), duration=0.05) + Animation(size_hint=(0.5, 1), duration=0.05)
             anim.start(instance)
@@ -509,25 +452,30 @@ class GameScreen(Screen):
     def _process_result(self, instance, timeout):
         app = App.get_running_app()
         correct = False
+        
+        # Cari tombol benar
         correct_btn = None
         for btn in self.buttons:
-            if btn.text == str(self.correct_answer): correct_btn = btn
+            if btn.text == str(self.correct_answer):
+                correct_btn = btn
 
         if not timeout and instance:
             if int(instance.text) == self.correct_answer:
                 correct = True
                 self.total_score += 10
                 app.play_sound('correct')
-                self.animate_btn(instance, (0.2, 0.8, 0.2, 1))
+                self.animate_btn(instance, (0.2, 0.8, 0.2, 1)) # Hijau
             else:
                 app.play_sound('wrong')
-                self.animate_btn(instance, (0.8, 0.2, 0.2, 1))
+                self.animate_btn(instance, (0.8, 0.2, 0.2, 1)) # Merah
         else:
-            app.play_sound('wrong')
+            app.play_sound('wrong') # Timeout
 
         if not correct:
             self.lives -= 1
-            if correct_btn: self.animate_btn(correct_btn, (0.2, 0.8, 0.2, 1))
+            if correct_btn:
+                self.animate_btn(correct_btn, (0.2, 0.8, 0.2, 1)) # Tunjukkan yg benar
+            
             if self.lives <= 0:
                 self.update_ui_labels()
                 Clock.schedule_once(self.show_game_over, 1.0)
@@ -542,10 +490,13 @@ class GameScreen(Screen):
 
     def finish_step(self, dt):
         if self.lives <= 0: return
+
         if self.question_num >= 10:
+            # Level Up - Auto Save
             self.question_num = 1
             self.level += 1
-            self.save_data_internal()
+            self.save_data_internal() # Auto Save
+            
             app = App.get_running_app()
             app.play_sound('win')
             self.show_level_complete()
@@ -553,7 +504,10 @@ class GameScreen(Screen):
             self.question_num += 1
             self.next_question()
 
+    # --- SAVE & LOAD LOGIC ---
+
     def save_data_internal(self):
+        """Fungsi internal untuk menyimpan ke JsonStore"""
         try:
             app = App.get_running_app()
             if getattr(app, 'store', None):
@@ -564,16 +518,23 @@ class GameScreen(Screen):
                               lives=self.lives,
                               question_num=self.question_num,
                               mode=self.game_mode)
-        except Exception: pass
+                write_local_log("Game Saved Successfully")
+        except Exception as e:
+            write_local_log(f"Save Error: {e}")
 
     def save_and_quit(self):
+        """Dipanggil tombol Simpan & Keluar"""
         if self.timer_event: self.timer_event.cancel()
         self.save_data_internal()
-        popup = Popup(title='Disimpan!', content=Label(text='Progres aman.', font_size='18sp'), size_hint=(0.5, 0.3))
+        # Tampilkan popup sebentar lalu keluar
+        popup = Popup(title='Disimpan!', 
+                      content=Label(text='Progres Anda aman.\nKembali ke menu utama...', font_size='18sp'),
+                      size_hint=(0.6, 0.4))
         popup.open()
-        Clock.schedule_once(lambda dt: self.exit_to_menu(popup), 1.0)
+        Clock.schedule_once(lambda dt: self.exit_to_menu(popup), 1.5)
 
     def just_quit(self):
+        """Keluar tanpa menyimpan (progress level ini hilang)"""
         if self.timer_event: self.timer_event.cancel()
         self.manager.transition.direction = 'right'
         self.manager.current = 'grade'
@@ -583,35 +544,41 @@ class GameScreen(Screen):
         self.manager.transition.direction = 'right'
         self.manager.current = 'grade'
 
+    # --- POPUPS ---
+
     def show_level_complete(self):
         content = BoxLayout(orientation='vertical', padding=20, spacing=15)
-        content.add_widget(Label(text=f"LEVEL {self.level-1} SELESAI!", font_size='22sp', bold=True, color=(0,1,0,1)))
+        lbl = Label(text=f"LEVEL {self.level-1} SELESAI!", font_size='22sp', bold=True, color=(0,1,0,1))
+        content.add_widget(lbl)
         
-        btn = RoundedButton(text="LANJUT >>", bg_color=(0, 0.6, 0, 1))
-        
-        popup = Popup(title="HEBAT!", content=content, size_hint=(0.7, 0.4), auto_dismiss=False)
+        btn = RoundedButton(text="LANJUT LEVEL BERIKUTNYA", bg_color=(0, 0.6, 0, 1))
         btn.bind(on_release=lambda x: self.next_level_action(popup))
         content.add_widget(btn)
+        
+        popup = Popup(title="HEBAT!", content=content, size_hint=(0.8, 0.5), auto_dismiss=False)
         popup.open()
 
     def next_level_action(self, popup):
         popup.dismiss()
-        self.lives = 3
+        self.lives = 3 # Reset nyawa setiap level baru (opsional, biar seru reset aja)
         self.start_round()
 
     def show_game_over(self, dt):
         content = BoxLayout(orientation='vertical', padding=20, spacing=15)
         content.add_widget(Label(text="GAME OVER", font_size='28sp', bold=True, color=(1,0,0,1)))
+        content.add_widget(Label(text="Nyawa habis!", font_size='18sp'))
         
+        # Tombol Ulang
         btn_retry = RoundedButton(text="ULANGI LEVEL", bg_color=(0.2, 0.6, 1, 1))
-        btn_exit = RoundedButton(text="KELUAR MENU", bg_color=(0.5, 0.2, 0.2, 1))
-
-        popup = Popup(title="", content=content, size_hint=(0.8, 0.5), auto_dismiss=False)
         btn_retry.bind(on_release=lambda x: self.retry_action(popup))
-        btn_exit.bind(on_release=lambda x: self.exit_game_over(popup))
-        
         content.add_widget(btn_retry)
+
+        # Tombol Keluar
+        btn_exit = RoundedButton(text="KELUAR MENU", bg_color=(0.5, 0.2, 0.2, 1))
+        btn_exit.bind(on_release=lambda x: self.exit_game_over(popup))
         content.add_widget(btn_exit)
+
+        popup = Popup(title="", content=content, size_hint=(0.8, 0.6), auto_dismiss=False)
         popup.open()
 
     def retry_action(self, popup):
@@ -637,6 +604,7 @@ class MathApp(App):
             data_dir = self.user_data_dir
             if data_dir and not os.path.exists(data_dir):
                 os.makedirs(data_dir, exist_ok=True)
+            # JsonStore untuk menyimpan data
             self.store = JsonStore(os.path.join(data_dir, 'math_save.json'))
         except Exception:
             self.store = None
@@ -645,49 +613,19 @@ class MathApp(App):
         return Builder.load_string(kv_string)
 
     def load_sounds(self):
-        # ANDROID SAFE: pakai resource_find dulu (cari di APK),
-        # lalu fallback ke filesystem path (buat desktop/dev)
         files = {'click': 'click.wav', 'correct': 'correct.wav', 'wrong': 'wrong.wav', 'win': 'win.wav'}
-        for k, filename in files.items():
+        for k, v in files.items():
             try:
-                rel_path = os.path.join('assets', 'sounds', filename).replace('\\','/')
-                real_path = resource_find(rel_path)
-                if not real_path:
-                    # fallback: try relative to script (desktop / dev)
-                    try:
-                        base_dir = os.path.dirname(os.path.abspath(__file__))
-                        alt = os.path.join(base_dir, 'assets', 'sounds', filename)
-                        if os.path.exists(alt):
-                            real_path = alt
-                    except Exception:
-                        real_path = None
-
-                if real_path:
-                    try:
-                        snd = SoundLoader.load(real_path)
-                        if snd:
-                            self.sounds[k] = snd
-                        else:
-                            write_local_log(f"Failed to load sound (SoundLoader returned None): {real_path}")
-                    except Exception as e:
-                        write_local_log(f"Error loading sound via SoundLoader: {real_path} -> {e}")
-                else:
-                    write_local_log(f"Sound missing: {rel_path}")
-            except Exception as e:
-                write_local_log(f"Err load sound: {e}")
+                snd = SoundLoader.load(v)
+                if snd: self.sounds[k] = snd
+            except: pass
 
     def play_sound(self, name):
         if name in self.sounds and self.sounds[name]:
-            try:
-                # many backends expect stop before play to reset
-                try:
-                    if getattr(self.sounds[name], 'state', None) == 'play':
-                        self.sounds[name].stop()
-                except Exception:
-                    pass
+            try: 
+                if self.sounds[name].state == 'play': self.sounds[name].stop()
                 self.sounds[name].play()
-            except Exception:
-                pass
+            except: pass
 
     def set_grade(self, grade):
         self.selected_grade = grade
@@ -695,21 +633,23 @@ class MathApp(App):
         self.grade_title = titles.get(grade, "")
 
     def load_last_game(self):
+        """Fungsi dipanggil tombol Load di Menu Awal"""
         if self.store and self.store.exists('math_save'):
             data = self.store.get('math_save')
+            
+            # Set Grade dulu
             self.set_grade(data.get('grade', 3))
+            
+            # Pindah screen
             self.root.transition.direction = 'left'
             self.root.current = 'game'
-            self.root.get_screen('game').resume_game(data)
+            
+            # Load data ke GameScreen
+            game_screen = self.root.get_screen('game')
+            game_screen.resume_game(data)
 
 if __name__ == '__main__':
     try:
         MathApp().run()
-    except Exception as e:
-        # pastikan catat error fatal ke file agar bisa di-trace di device
-        try:
-            write_local_log(f"FATAL: {e}")
-            write_local_log(traceback.format_exc())
-        except:
-            # fallback print
-            print(traceback.format_exc())
+    except Exception:
+        pass
