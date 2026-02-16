@@ -12,11 +12,10 @@ package.domain = org.mathapp.game
 source.dir = .
 
 # (list) Source files to include (let empty to include all the files)
-# include wav + kv + common image extensions and atlas
-source.include_exts = py,kv,png,jpg,atlas,wav,mp3,ogg
+source.include_exts = py,png,jpg,kv,atlas
 
 # (list) Source files to exclude (let empty to not exclude anything)
-source.exclude_exts = spec,pyc
+source.exclude_exts = spec
 
 # (str) Application versioning
 version = 1.0
@@ -24,8 +23,9 @@ version = 1.0
 # ---------------------------
 # Requirements
 # ---------------------------
-# python3 + kivy + ffpyplayer for stable audio on Android
-requirements = python3,kivy==2.1.0,ffpyplayer
+# Gunakan python3 plus versi Kivy yang stabil di p4a.
+# Jika ingin versi Kivy lain, ganti di sini.
+requirements = python3,kivy==2.1.0
 
 # (list) Supported orientations
 orientation = portrait
@@ -34,54 +34,48 @@ orientation = portrait
 fullscreen = 0
 
 # (list) Permissions
-# Uncomment if your app needs internet or other permissions
+# PENTING: Jangan aktifkan WRITE_EXTERNAL_STORAGE jika pakai user_data_dir
+# Uncomment jika aplikasi butuh Internet:
 # android.permissions = INTERNET
 
 # ---------------------------
 # Android settings
 # ---------------------------
-# Target Android API (set reasonably high)
+# Target Android API (set cukup tinggi agar kompatibel)
 android.api = 33
-# Minimum API supported
+# Minimum API
 android.minapi = 21
-
-# Use private storage (no external storage permission required)
+# Use private storage (true = lebih aman, tidak perlu permission)
 android.private_storage = True
-
-# Auto accept SDK license to avoid interactive prompt during build
+# Auto accept SDK licenses to avoid interactive prompt
 android.accept_sdk_license = True
 
-# The Android archs to build for (both 32 & 64 bit)
+# Build archs - tetapkan kedua agar berjalan di perangkat 32 & 64 bit
 android.archs = arm64-v8a, armeabi-v7a
 
-# Enable Android auto backup feature
+# Enable Android backup (optional)
 android.allow_backup = True
 
-# Build artifact format for debug/release
-android.debug_artifact = apk
+# Build artifact format
+# Untuk testing/debug lebih gampang pakai apk — ubah ke aab bila mau rilis ke Play Store
 android.release_artifact = apk
+android.debug_artifact = apk
 
-# Python-for-Android settings
+# Python for android (p4a) specific
 p4a.branch = master
 p4a.bootstrap = sdl2
 
-# (Optional) Pin NDK version if you have known issues (uncomment to use)
-# android.ndk = 23b
+# (Optional) Set a specific NDK version if kamu pernah mengalami masalah NDK.
+# Contoh (commented): android.ndk = 23b
 
-# (Optional) If you hit issues with ffpyplayer native deps on CI, consider:
-# p4a.source_dir = /path/to/p4a   (not usually needed)
+# iOS settings (tidak dipakai di Android)
+ios.kivy_ios_dir = ../kivy-ios
+ios.codesign.allowed = false
 
-# ---------------------------
-# Extra buildozer options
-# ---------------------------
-# (int) Log level (0 = error only, 1 = info, 2 = debug)
+[buildozer]
+# Log level (0 error only, 1 info, 2 debug)
 log_level = 2
-# (int) Warn if buildozer is run as root
 warn_on_root = 1
 
-# (Optional) Increase the timeout for CI builders (comment/uncomment as needed)
-# build_timeout = 120
-
-# (Optional) Specify requirements for recipes that need system libs (rare)
-# android.gradle_dependencies = com.android.support:appcompat-v7:26.1.0
-
+# (Optional) Jika mau output lebih kecil / build caching, ada opsi tambahan,
+# tapi untuk permulaan jangan diubah supaya build lebih prediktabel.
