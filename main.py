@@ -18,6 +18,7 @@ from kivy.storage.jsonstore import JsonStore
 from kivy.animation import Animation
 from kivy.graphics import Color, RoundedRectangle
 from kivy.core.audio import SoundLoader
+from kivy.resources import resource_find
 from kivy.metrics import dp
 
 # Warna Background (Biru Gelap Modern)
@@ -644,28 +645,49 @@ class MathApp(App):
         return Builder.load_string(kv_string)
 
     def load_sounds(self):
-        # CARA BENAR LOAD ASSETS DARI GITHUB FOLDER STRUKTUR
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        sound_dir = os.path.join(base_dir, 'assets', 'sounds')
-
+        # ANDROID SAFE: pakai resource_find dulu (cari di APK),
+        # lalu fallback ke filesystem path (buat desktop/dev)
         files = {'click': 'click.wav', 'correct': 'correct.wav', 'wrong': 'wrong.wav', 'win': 'win.wav'}
         for k, filename in files.items():
             try:
-                full_path = os.path.join(sound_dir, filename)
-                if os.path.exists(full_path):
-                    snd = SoundLoader.load(full_path)
-                    if snd: self.sounds[k] = snd
+                rel_path = os.path.join('assets', 'sounds', filename).replace('\\','/')
+                real_path = resource_find(rel_path)
+                if not real_path:
+                    # fallback: try relative to script (desktop / dev)
+                    try:
+                        base_dir = os.path.dirname(os.path.abspath(__file__))
+                        alt = os.path.join(base_dir, 'assets', 'sounds', filename)
+                        if os.path.exists(alt):
+                            real_path = alt
+                    except Exception:
+                        real_path = None
+
+                if real_path:
+                    try:
+                        snd = SoundLoader.load(real_path)
+                        if snd:
+                            self.sounds[k] = snd
+                        else:
+                            write_local_log(f"Failed to load sound (SoundLoader returned None): {real_path}")
+                    except Exception as e:
+                        write_local_log(f"Error loading sound via SoundLoader: {real_path} -> {e}")
                 else:
-                    write_local_log(f"Sound missing: {full_path}")
+                    write_local_log(f"Sound missing: {rel_path}")
             except Exception as e:
                 write_local_log(f"Err load sound: {e}")
 
     def play_sound(self, name):
         if name in self.sounds and self.sounds[name]:
-            try: 
-                if self.sounds[name].state == 'play': self.sounds[name].stop()
+            try:
+                # many backends expect stop before play to reset
+                try:
+                    if getattr(self.sounds[name], 'state', None) == 'play':
+                        self.sounds[name].stop()
+                except Exception:
+                    pass
                 self.sounds[name].play()
-            except: pass
+            except Exception:
+                pass
 
     def set_grade(self, grade):
         self.selected_grade = grade
@@ -681,4 +703,13 @@ class MathApp(App):
             self.root.get_screen('game').resume_game(data)
 
 if __name__ == '__main__':
-    MathApp().run()
+    try:
+        MathApp().run()
+    except Exception as e:
+        # pastikan catat error fatal ke file agar bisa di-trace di device
+        try:
+            write_local_log(f"FATAL: {e}")
+            write_local_log(traceback.format_exc())
+        except:
+            # fallback print
+            print(traceback.format_exc())
