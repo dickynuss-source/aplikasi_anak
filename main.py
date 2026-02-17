@@ -1,8 +1,9 @@
-# main.py (FINAL: SAVE & LOAD SYSTEM FIXED)
 import random
 import os
 import sys
-import traceback
+import webbrowser # Library untuk membuka link WA
+from urllib.parse import quote # Library untuk encode pesan teks agar aman di URL
+
 from kivy.app import App
 from kivy.lang import Builder
 from kivy.uix.screenmanager import ScreenManager, Screen, SlideTransition
@@ -10,6 +11,7 @@ from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.uix.popup import Popup
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.textinput import TextInput
 from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.properties import StringProperty, NumericProperty, ListProperty
@@ -108,7 +110,7 @@ ScreenManager:
     BoxLayout:
         orientation: 'vertical'
         padding: 30
-        spacing: 20
+        spacing: 15
 
         Label:
             text: app.grade_title
@@ -116,6 +118,16 @@ ScreenManager:
             bold: True
             color: 0.5, 0.8, 1, 1
             size_hint: 1, 0.15
+
+        # Tombol Setting Nomor WA
+        RoundedButton:
+            text: "Set Nomor WA Ortu"
+            bg_color: 0.2, 0.8, 0.2, 1
+            size_hint: 1, 0.12
+            font_size: '16sp'
+            on_release:
+                app.play_sound('click')
+                app.show_phone_input_popup()
 
         GridLayout:
             cols: 2
@@ -271,7 +283,6 @@ class RoundedButton(Button):
 # ---------- Screens ----------
 class GradeScreen(Screen):
     def on_enter(self):
-        # Setiap masuk layar ini, cek apakah ada Save Data
         self.check_save_data()
 
     def check_save_data(self):
@@ -281,7 +292,6 @@ class GradeScreen(Screen):
             
             if getattr(app, 'store', None) and app.store.exists('math_save'):
                 data = app.store.get('math_save')
-                # Tampilkan info save di tombol
                 lvl = data.get('level', 1)
                 scr = data.get('score', 0)
                 mode = data.get('mode', 'tambah').upper()
@@ -340,7 +350,6 @@ class GameScreen(Screen):
     # --- GAMEPLAY LOGIC ---
 
     def start_new_game(self, mode):
-        """Memulai game baru dari awal"""
         self.game_mode = mode
         self.level = 1
         self.total_score = 0
@@ -349,7 +358,6 @@ class GameScreen(Screen):
         self.start_round()
 
     def resume_game(self, data):
-        """Melanjutkan game dari data save"""
         self.game_mode = data.get('mode', 'tambah')
         self.level = data.get('level', 1)
         self.total_score = data.get('score', 0)
@@ -358,7 +366,6 @@ class GameScreen(Screen):
         self.start_round()
 
     def start_round(self):
-        # Update UI Awal
         self.update_ui_labels()
         self.next_question()
 
@@ -366,7 +373,6 @@ class GameScreen(Screen):
         self.game_active = True
         if self.timer_event: self.timer_event.cancel()
         
-        # Kesulitan Waktu
         base = 20
         reduction = min(12, (self.level - 1))
         self.time_left = base - reduction
@@ -388,7 +394,6 @@ class GameScreen(Screen):
         grade = getattr(app, 'selected_grade', 3)
         diff = self.level
         
-        # Logic Soal
         if self.game_mode == 'tambah':
             max_v = 15 + (10 * diff) + (grade*2)
             n1, n2 = random.randint(1, max_v), random.randint(1, max_v)
@@ -413,7 +418,6 @@ class GameScreen(Screen):
         self.correct_answer = ans
         self.question_text = f"{n1} {sym} {n2} = ?"
 
-        # Jawaban Pengecoh
         answers = [ans]
         while len(answers) < 4:
             fake = ans + random.randint(-5, 5)
@@ -425,8 +429,7 @@ class GameScreen(Screen):
         for i, btn in enumerate(self.buttons):
             btn.text = str(answers[i])
             btn.disabled = False
-            btn.bg_color = (0.2, 0.6, 1, 1) # Reset Biru
-            # Animasi Fade In
+            btn.bg_color = (0.2, 0.6, 1, 1) 
             anim = Animation(opacity=0, duration=0) + Animation(opacity=1, duration=0.3)
             anim.start(btn)
 
@@ -442,7 +445,6 @@ class GameScreen(Screen):
         self.game_active = False 
         if self.timer_event: self.timer_event.cancel()
 
-        # Animasi Pencet
         if instance:
             anim = Animation(size_hint=(0.45, 0.9), duration=0.05) + Animation(size_hint=(0.5, 1), duration=0.05)
             anim.start(instance)
@@ -453,7 +455,6 @@ class GameScreen(Screen):
         app = App.get_running_app()
         correct = False
         
-        # Cari tombol benar
         correct_btn = None
         for btn in self.buttons:
             if btn.text == str(self.correct_answer):
@@ -464,17 +465,17 @@ class GameScreen(Screen):
                 correct = True
                 self.total_score += 10
                 app.play_sound('correct')
-                self.animate_btn(instance, (0.2, 0.8, 0.2, 1)) # Hijau
+                self.animate_btn(instance, (0.2, 0.8, 0.2, 1)) 
             else:
                 app.play_sound('wrong')
-                self.animate_btn(instance, (0.8, 0.2, 0.2, 1)) # Merah
+                self.animate_btn(instance, (0.8, 0.2, 0.2, 1)) 
         else:
-            app.play_sound('wrong') # Timeout
+            app.play_sound('wrong') 
 
         if not correct:
             self.lives -= 1
             if correct_btn:
-                self.animate_btn(correct_btn, (0.2, 0.8, 0.2, 1)) # Tunjukkan yg benar
+                self.animate_btn(correct_btn, (0.2, 0.8, 0.2, 1)) 
             
             if self.lives <= 0:
                 self.update_ui_labels()
@@ -492,10 +493,9 @@ class GameScreen(Screen):
         if self.lives <= 0: return
 
         if self.question_num >= 10:
-            # Level Up - Auto Save
             self.question_num = 1
             self.level += 1
-            self.save_data_internal() # Auto Save
+            self.save_data_internal()
             
             app = App.get_running_app()
             app.play_sound('win')
@@ -504,10 +504,7 @@ class GameScreen(Screen):
             self.question_num += 1
             self.next_question()
 
-    # --- SAVE & LOAD LOGIC ---
-
     def save_data_internal(self):
-        """Fungsi internal untuk menyimpan ke JsonStore"""
         try:
             app = App.get_running_app()
             if getattr(app, 'store', None):
@@ -523,10 +520,8 @@ class GameScreen(Screen):
             write_local_log(f"Save Error: {e}")
 
     def save_and_quit(self):
-        """Dipanggil tombol Simpan & Keluar"""
         if self.timer_event: self.timer_event.cancel()
         self.save_data_internal()
-        # Tampilkan popup sebentar lalu keluar
         popup = Popup(title='Disimpan!', 
                       content=Label(text='Progres Anda aman.\nKembali ke menu utama...', font_size='18sp'),
                       size_hint=(0.6, 0.4))
@@ -534,7 +529,6 @@ class GameScreen(Screen):
         Clock.schedule_once(lambda dt: self.exit_to_menu(popup), 1.5)
 
     def just_quit(self):
-        """Keluar tanpa menyimpan (progress level ini hilang)"""
         if self.timer_event: self.timer_event.cancel()
         self.manager.transition.direction = 'right'
         self.manager.current = 'grade'
@@ -551,16 +545,49 @@ class GameScreen(Screen):
         lbl = Label(text=f"LEVEL {self.level-1} SELESAI!", font_size='22sp', bold=True, color=(0,1,0,1))
         content.add_widget(lbl)
         
-        btn = RoundedButton(text="LANJUT LEVEL BERIKUTNYA", bg_color=(0, 0.6, 0, 1))
+        # --- TOMBOL KIRIM WA ---
+        btn_wa = RoundedButton(text="LAPOR KE ORTU (WA)", bg_color=(0, 0.8, 0, 1))
+        btn_wa.bind(on_release=lambda x: self.send_whatsapp_report())
+        content.add_widget(btn_wa)
+        
+        btn = RoundedButton(text="LANJUT LEVEL BERIKUTNYA", bg_color=(0.2, 0.6, 1, 1))
         btn.bind(on_release=lambda x: self.next_level_action(popup))
         content.add_widget(btn)
         
-        popup = Popup(title="HEBAT!", content=content, size_hint=(0.8, 0.5), auto_dismiss=False)
+        popup = Popup(title="HEBAT!", content=content, size_hint=(0.9, 0.6), auto_dismiss=False)
+        self.active_popup = popup
         popup.open()
+
+    def send_whatsapp_report(self):
+        """Kirim pesan ke WA Ortu"""
+        app = App.get_running_app()
+        try:
+            # Ambil nomor dari setting
+            phone = ""
+            if app.store.exists('settings'):
+                phone = app.store.get('settings').get('parent_phone', '')
+            
+            # Jika nomor kosong, minta user isi dulu
+            if not phone:
+                app.show_phone_input_popup(callback=self.send_whatsapp_report)
+                return
+
+            # Format Pesan
+            msg = f"Halo! Aku baru saja menyelesaikan Level {self.level-1} di Math Master dengan skor {self.total_score}. Hebat kan! 🥳"
+            encoded_msg = quote(msg)
+            
+            # Buat URL WhatsApp (Universal Link)
+            url = f"https://wa.me/{phone}?text={encoded_msg}"
+            
+            # Buka Browser / Aplikasi WA
+            webbrowser.open(url)
+            
+        except Exception as e:
+            write_local_log(f"WA Error: {e}")
 
     def next_level_action(self, popup):
         popup.dismiss()
-        self.lives = 3 # Reset nyawa setiap level baru (opsional, biar seru reset aja)
+        self.lives = 3 
         self.start_round()
 
     def show_game_over(self, dt):
@@ -568,12 +595,10 @@ class GameScreen(Screen):
         content.add_widget(Label(text="GAME OVER", font_size='28sp', bold=True, color=(1,0,0,1)))
         content.add_widget(Label(text="Nyawa habis!", font_size='18sp'))
         
-        # Tombol Ulang
         btn_retry = RoundedButton(text="ULANGI LEVEL", bg_color=(0.2, 0.6, 1, 1))
         btn_retry.bind(on_release=lambda x: self.retry_action(popup))
         content.add_widget(btn_retry)
 
-        # Tombol Keluar
         btn_exit = RoundedButton(text="KELUAR MENU", bg_color=(0.5, 0.2, 0.2, 1))
         btn_exit.bind(on_release=lambda x: self.exit_game_over(popup))
         content.add_widget(btn_exit)
@@ -604,7 +629,6 @@ class MathApp(App):
             data_dir = self.user_data_dir
             if data_dir and not os.path.exists(data_dir):
                 os.makedirs(data_dir, exist_ok=True)
-            # JsonStore untuk menyimpan data
             self.store = JsonStore(os.path.join(data_dir, 'math_save.json'))
         except Exception:
             self.store = None
@@ -633,20 +657,47 @@ class MathApp(App):
         self.grade_title = titles.get(grade, "")
 
     def load_last_game(self):
-        """Fungsi dipanggil tombol Load di Menu Awal"""
         if self.store and self.store.exists('math_save'):
             data = self.store.get('math_save')
-            
-            # Set Grade dulu
             self.set_grade(data.get('grade', 3))
-            
-            # Pindah screen
             self.root.transition.direction = 'left'
             self.root.current = 'game'
-            
-            # Load data ke GameScreen
-            game_screen = self.root.get_screen('game')
-            game_screen.resume_game(data)
+            self.root.get_screen('game').resume_game(data)
+
+    def show_phone_input_popup(self, callback=None):
+        """Popup untuk memasukkan nomor WA orang tua"""
+        content = BoxLayout(orientation='vertical', padding=15, spacing=15)
+        
+        lbl = Label(text="Masukkan No. WA Ortu\n(Contoh: 62812345678)", halign='center')
+        
+        # Ambil nomor lama jika ada
+        old_num = ""
+        if self.store.exists('settings'):
+            old_num = self.store.get('settings').get('parent_phone', '')
+
+        txt_input = TextInput(text=old_num, multiline=False, font_size='20sp', input_filter='int')
+        
+        btn_save = RoundedButton(text="SIMPAN", bg_color=(0.2, 0.6, 1, 1), size_hint=(1, 0.4))
+        
+        content.add_widget(lbl)
+        content.add_widget(txt_input)
+        content.add_widget(btn_save)
+        
+        popup = Popup(title="Setting WA", content=content, size_hint=(0.8, 0.45), auto_dismiss=False)
+        
+        def save_action(instance):
+            num = txt_input.text.strip()
+            if num:
+                # Simpan ke storage
+                self.store.put('settings', parent_phone=num)
+                popup.dismiss()
+                if callback: callback()
+            else:
+                lbl.text = "Nomor tidak boleh kosong!"
+                lbl.color = (1, 0, 0, 1)
+
+        btn_save.bind(on_release=save_action)
+        popup.open()
 
 if __name__ == '__main__':
     try:
